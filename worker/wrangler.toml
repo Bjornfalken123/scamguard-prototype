@@ -1,0 +1,11 @@
+name = "scamguard-prototype"
+main = "src/index.js"
+compatibility_date = "2026-06-22"
+assets = { directory = "./public", binding = "ASSETS" }
+
+[vars]
+APP_NAME = "ScamGuard"
+FORWARD_TO_NUMBER = "+46700000000"
+RISK_THRESHOLD = "65"
+AI_PROVIDER = "mock"
+TELEPHONY_PROVIDER = "mock"
