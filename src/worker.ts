@@ -1,6 +1,5 @@
 export interface Env {
   ASSETS: Fetcher;
-  SCAMGUARD_KV: KVNamespace;
   APP_NAME: string;
   FORWARD_TO_NUMBER: string;
   TRUSTED_NUMBERS: string;
@@ -29,6 +28,8 @@ const suspiciousPatterns = [
   { phrase: "misstänkt transaktion", points: 22, reason: "Typiskt bankbedrägerimönster" },
   { phrase: "flytta pengar", points: 28, reason: "Vill påverka pengar/transaktion" }
 ];
+
+const recentEvents: unknown[] = [];
 
 function normalizePhone(value: string | null): string {
   return (value || "").replace(/[\s()-]/g, "");
@@ -82,23 +83,11 @@ async function parseBody(request: Request): Promise<Record<string, string>> {
   return data;
 }
 
-async function storeEvent(env: Env, event: unknown) {
-  const id = `${Date.now()}-${crypto.randomUUID()}`;
-  await env.SCAMGUARD_KV.put(`event:${id}`, JSON.stringify({ id, createdAt: new Date().toISOString(), ...event }), {
-    expirationTtl: 60 * 60 * 24 * 30
-  });
-  return id;
-}
-
-async function listRecentEvents(env: Env) {
-  const list = await env.SCAMGUARD_KV.list({ prefix: "event:", limit: 30 });
-  const events = await Promise.all(
-    list.keys.map(async key => {
-      const raw = await env.SCAMGUARD_KV.get(key.name);
-      return raw ? JSON.parse(raw) : null;
-    })
-  );
-  return events.filter(Boolean).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+async function storeEvent(event: unknown) {
+  const item = { id: crypto.randomUUID(), createdAt: new Date().toISOString(), ...(event as object) };
+  recentEvents.unshift(item);
+  if (recentEvents.length > 30) recentEvents.pop();
+  return item;
 }
 
 export default {
@@ -112,20 +101,19 @@ export default {
     if (url.pathname === "/api/analyze" && request.method === "POST") {
       const body = await request.json() as { text?: string };
       const result = riskAnalyze(body.text || "");
-      await storeEvent(env, { type: "manual-analysis", text: body.text || "", result });
+      await storeEvent({ type: "manual-analysis", text: body.text || "", result });
       return Response.json(result);
     }
 
     if (url.pathname === "/api/events") {
-      return Response.json(await listRecentEvents(env));
+      return Response.json(recentEvents);
     }
 
-    // Twilio-compatible webhook: first entry point for unknown calls.
     if (url.pathname === "/voice/incoming" && request.method === "POST") {
       const body = await parseBody(request);
       const from = normalizePhone(body.From || "unknown");
       const trusted = trustedSet(env).has(from);
-      await storeEvent(env, { type: "incoming-call", from, trusted });
+      await storeEvent({ type: "incoming-call", from, trusted });
 
       if (trusted) {
         return twiml(`<Response><Dial>${env.FORWARD_TO_NUMBER}</Dial></Response>`);
@@ -142,13 +130,12 @@ export default {
 </Response>`);
     }
 
-    // Twilio posts SpeechResult here after caller answers AI question.
     if (url.pathname === "/voice/screen-result" && request.method === "POST") {
       const body = await parseBody(request);
       const from = normalizePhone(body.From || "unknown");
       const speech = body.SpeechResult || "";
       const result = riskAnalyze(speech);
-      await storeEvent(env, { type: "screen-result", from, speech, result });
+      await storeEvent({ type: "screen-result", from, speech, result });
 
       const threshold = Number(env.RISK_THRESHOLD || "65");
       if (result.score >= threshold) {

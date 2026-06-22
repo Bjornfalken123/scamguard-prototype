@@ -1,74 +1,68 @@
-# ScamGuard AI Call Filter – Cloudflare Prototype
+# ScamGuard Prototype – Cloudflare Worker
 
-En MVP-prototyp för ett AI-samtalsskydd där okända samtal routas till en AI-screening innan de kopplas vidare till senioren.
+Det här är en fixad MVP som kan deployas direkt via GitHub + Cloudflare Workers Builds.
 
-## Vad prototypen innehåller
+## Viktigt
 
-- Cloudflare Worker med statisk webbyta.
-- Twilio-kompatibla voice webhooks:
-  - `POST /voice/incoming`
-  - `POST /voice/screen-result`
-- Enkel svensk regelbaserad riskmotor.
-- KV-loggning av samtalsevents.
-- Webbvy för att testa textanalys och se events.
+Den här versionen kräver **ingen KV**, inga secrets och ingen lokal körning. Den är gjord för att inte fastna på placeholder-felet:
 
-## Varför den här arkitekturen funkar för iOS
+`KV namespace 'REPLACE_WITH_YOUR_KV_NAMESPACE_ID' is not valid`
 
-iOS ger inte en vanlig app fri åtkomst till ljudet i mobiltelefonsamtal. Därför routas samtalet till er telefonibackend först. AI:n hör samtalet eftersom den är mottagande part i telefonisystemet, inte för att iPhone-appen spelar in samtalet.
+Events sparas bara temporärt i Worker-instansen. För produktion kan KV/D1 läggas till senare.
 
-## Snabbstart
+## Filer som ska ligga direkt i GitHub-repot
 
-```bash
-npm install
-npx wrangler login
-npx wrangler kv namespace create SCAMGUARD_KV
-```
+Du ska se detta direkt på första nivån i GitHub:
 
-Kopiera KV namespace-id:t till `wrangler.toml`.
+- `package.json`
+- `wrangler.toml`
+- `src/worker.ts`
+- `public/index.html`
+- `public/app.js`
+- `public/styles.css`
 
-Ändra sedan:
+Lägg inte allt i en extra undermapp.
+
+## Cloudflare-inställningar
+
+Skapa/importera som **Worker**, inte Pages.
+
+- Framework preset: `None`
+- Build command: `npm install`
+- Deploy command: `npx wrangler deploy`
+- Root directory: tomt om filerna ligger i repo-root
+- Output directory: tomt
+
+## Ändra telefonnummer
+
+I `wrangler.toml`:
 
 ```toml
-FORWARD_TO_NUMBER = "+467..."      # seniorens riktiga nummer
-TRUSTED_NUMBERS = "+467...,+467..." # nummer som ska släppas igenom
-RISK_THRESHOLD = "65"
+FORWARD_TO_NUMBER = "+46700000000"
+TRUSTED_NUMBERS = "+46701111111,+46702222222"
 ```
 
-Kör lokalt:
+- `FORWARD_TO_NUMBER` = seniorens nummer som trygga samtal kopplas till.
+- `TRUSTED_NUMBERS` = nummer som ska släppas igenom direkt.
 
-```bash
-npm run dev
-```
+## Testa efter deploy
 
-Deploy:
+Öppna:
 
-```bash
-npm run deploy
-```
+`https://DIN-WORKER.workers.dev`
 
-## Koppla telefoni
+Health check:
 
-Med Twilio som exempel:
+`https://DIN-WORKER.workers.dev/api/health`
 
-1. Köp/konfigurera ett telefonnummer.
-2. Sätt Voice webhook till:
-   `https://DIN-WORKER.workers.dev/voice/incoming`
-3. Metod: `POST`.
-4. För villkorad vidarekoppling: låt seniorens operatör vidarekoppla okända/missade samtal till Twilio-numret, eller bygg detta genom operatörspartner.
+Twilio/Sinch/Telnyx webhook senare:
 
-## Viktiga nästa steg för riktig produkt
+`POST https://DIN-WORKER.workers.dev/voice/incoming`
 
-- Konto/inloggning för senior och anhörig.
-- Kontaktimport och allowlist per användare.
-- Riktig telefoni-provider: Twilio, Sinch, Telnyx eller operatör.
-- Riktig transkribering/LLM-bedömning.
-- Anhörigvarningar via SMS/push.
-- Audit log, consent, datalagring och GDPR-flöden.
-- Fallback om AI är osäker: koppla till anhörig eller voicemail.
+## Vad prototypen gör
 
-## Rekommenderad produktmodell
-
-- iOS/Android-app: onboarding, anhöriga, trusted contacts, historik.
-- Cloudflare: routing, screeninglogik, dashboard, API.
-- Telefoni-provider: tar emot okända samtal och kopplar vidare.
-- AI: transkribering + riskklassning + sammanfattning.
+- Webbsida för att testa svensk AI/risklogik.
+- Twilio-kompatibla TwiML-svar.
+- Okända nummer får AI-fråga: vem är du och varför ringer du?
+- Riskabla svar stoppas.
+- Trygga svar kopplas vidare.
