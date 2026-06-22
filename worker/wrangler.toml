@@ -1,0 +1,9 @@
+name = "scamguard-prototype"
+main = "src/index.ts"
+compatibility_date = "2026-06-22"
+
+[vars]
+APP_NAME = "ScamGuard"
+MODE = "prototype"
+FORWARD_TO_NUMBER = "+46700000000"
+RISK_THRESHOLD = "65"

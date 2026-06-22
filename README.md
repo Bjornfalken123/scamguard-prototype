@@ -1,68 +1,73 @@
-# ScamGuard Prototype – Cloudflare Worker
+# ScamGuard Complete Prototype
 
-Det här är en fixad MVP som kan deployas direkt via GitHub + Cloudflare Workers Builds.
+En komplett men extern-kopplingsfri prototyp för ett AI-samtalsskydd för seniorer.
+
+## Vad som ingår
+
+- `apps/mobile` – Flutter-app för iOS och Android.
+- `worker` – Cloudflare Worker backend med mockad AI, telefoni och samtalsrouting.
+- `docs` – arkitektur, setup och nästa steg.
 
 ## Viktigt
 
-Den här versionen kräver **ingen KV**, inga secrets och ingen lokal körning. Den är gjord för att inte fastna på placeholder-felet:
+Den här prototypen använder inga externa kopplingar. Ingen Twilio, Sinch, Telnyx, OpenAI eller databas krävs.
 
-`KV namespace 'REPLACE_WITH_YOUR_KV_NAMESPACE_ID' is not valid`
+Allt är förberett för att bytas ut senare via adapters:
 
-Events sparas bara temporärt i Worker-instansen. För produktion kan KV/D1 läggas till senare.
+- `worker/src/adapters/telephony.ts`
+- `worker/src/adapters/ai.ts`
+- `worker/src/storage.ts`
 
-## Filer som ska ligga direkt i GitHub-repot
+## Snabbstart via Cloudflare + GitHub
 
-Du ska se detta direkt på första nivån i GitHub:
+1. Ladda upp hela projektet till GitHub.
+2. Skapa en Cloudflare Worker från mappen `worker`.
+3. Deploy command:
 
-- `package.json`
-- `wrangler.toml`
-- `src/worker.ts`
-- `public/index.html`
-- `public/app.js`
-- `public/styles.css`
-
-Lägg inte allt i en extra undermapp.
-
-## Cloudflare-inställningar
-
-Skapa/importera som **Worker**, inte Pages.
-
-- Framework preset: `None`
-- Build command: `npm install`
-- Deploy command: `npx wrangler deploy`
-- Root directory: tomt om filerna ligger i repo-root
-- Output directory: tomt
-
-## Ändra telefonnummer
-
-I `wrangler.toml`:
-
-```toml
-FORWARD_TO_NUMBER = "+46700000000"
-TRUSTED_NUMBERS = "+46701111111,+46702222222"
+```bash
+npm install && npm run deploy
 ```
 
-- `FORWARD_TO_NUMBER` = seniorens nummer som trygga samtal kopplas till.
-- `TRUSTED_NUMBERS` = nummer som ska släppas igenom direkt.
+4. Worker root directory:
 
-## Testa efter deploy
+```text
+worker
+```
 
-Öppna:
+## Mobilappen
 
-`https://DIN-WORKER.workers.dev`
+Flutter-appen är en prototyp-UI. Den kan byggas vidare till riktig iOS/Android-app.
 
-Health check:
+Appen visar:
 
-`https://DIN-WORKER.workers.dev/api/health`
+- Skyddsstatus
+- Senaste samtal
+- Riskbedömningar
+- Anhörigvy
+- Inställningar
 
-Twilio/Sinch/Telnyx webhook senare:
+Just nu använder mobilappen mockdata och är förberedd för att kopplas till Cloudflare Worker API.
 
-`POST https://DIN-WORKER.workers.dev/voice/incoming`
+## Backend endpoints
 
-## Vad prototypen gör
+Efter deploy:
 
-- Webbsida för att testa svensk AI/risklogik.
-- Twilio-kompatibla TwiML-svar.
-- Okända nummer får AI-fråga: vem är du och varför ringer du?
-- Riskabla svar stoppas.
-- Trygga svar kopplas vidare.
+- `/` – webbdemo
+- `/health` – status
+- `/api/profile` – seniorprofil
+- `/api/calls` – samtalslogg
+- `/api/simulate-call` – simulera inkommande okänt samtal
+- `/voice/incoming` – mockad telefoni-webhook
+
+## Produktprincip
+
+På iOS ska appen inte försöka lyssna på vanliga telefonsamtal. Rätt arkitektur är:
+
+```text
+Okänt samtal
+→ vidarekopplas till ScamGuard-nummer
+→ AI screenar samtalet
+→ tryggt samtal kopplas vidare
+→ misstänkt samtal stoppas eller varnar anhörig
+```
+
